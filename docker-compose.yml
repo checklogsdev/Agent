@@ -1,83 +1,101 @@
-version: '3.8'
+version: '0.0.1'
 
-# CheckLogs Agent - Docker pour clients
-# Installation sur chaque serveur à monitorer
-# Repository: https://github.com/checklogsdev/dockerfile
+# CheckLogs Monitoring Agent
+# The user ONLY needs to configure API_KEY and UDP_PORT from the dashboard
+# The agent automatically sends metrics to api.checklogs.dev
 
 services:
-  # =============================================
-  # Agent de monitoring Go
-  # =============================================
   agent:
     image: checklogsdev/agent:latest
     container_name: checklogs_agent
     restart: unless-stopped
     
-    # Accès au système hôte pour collecter les métriques
     privileged: true
+    network_mode: host
     
     environment:
-      # Configuration CheckLogs API
-      CHECKLOGS_API_HOST: ${CHECKLOGS_API_HOST}
-      CHECKLOGS_API_PORT: ${CHECKLOGS_API_PORT}
+      # ============================================
+      # REQUIRED: Get these from CheckLogs Dashboard
+      # ============================================
       CHECKLOGS_API_KEY: ${CHECKLOGS_API_KEY}
+      CHECKLOGS_API_PORT: ${CHECKLOGS_API_PORT}
       
-      # Configuration serveur
-      SERVER_NAME: ${SERVER_NAME}
-      SERVER_HOSTNAME: ${SERVER_HOSTNAME:-auto}
+      # ============================================
+      # FIXED: API Host (user doesn't change this)
+      # ============================================
+      CHECKLOGS_API_HOST: api.checklogs.dev
       
-      # Fréquence de collecte (en secondes)
+      # ============================================
+      # Optional Configuration
+      # ============================================
+      SERVER_NAME: ${SERVER_NAME:-My Server}
       COLLECT_INTERVAL: ${COLLECT_INTERVAL:-10}
       
-      # Métriques à collecter
       COLLECT_CPU: ${COLLECT_CPU:-true}
       COLLECT_RAM: ${COLLECT_RAM:-true}
       COLLECT_DISK: ${COLLECT_DISK:-true}
       COLLECT_LOAD: ${COLLECT_LOAD:-true}
       COLLECT_PROCESSES: ${COLLECT_PROCESSES:-true}
-      COLLECT_NETWORK: ${COLLECT_NETWORK:-false}
       
-      # Top processus
       TOP_PROCESSES_COUNT: ${TOP_PROCESSES_COUNT:-10}
       
-      # Détection anomalies
       ANOMALY_DETECTION: ${ANOMALY_DETECTION:-true}
       ANOMALY_THRESHOLD: ${ANOMALY_THRESHOLD:-50}
       
-      # Logs
       LOG_LEVEL: ${LOG_LEVEL:-info}
-    
+      
     volumes:
-      # Accès en lecture seule au système hôte
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/host/root:ro
       - /etc/hostname:/etc/hostname:ro
       - /etc/os-release:/etc/os-release:ro
-      
-      # Logs de l'agent
       - agent_logs:/var/log/checklogs
+      - agent_state:/var/lib/checklogs
     
-    # Pas de réseau exposé (communication sortante UDP uniquement)
-    network_mode: host
-    
-    # Limites de ressources (max 20% CPU, 250MB RAM)
     deploy:
       resources:
         limits:
-          cpus: '0.20'
-          memory: 250M
+          cpus: '0.25'
+          memory: 256M
         reservations:
           cpus: '0.05'
-          memory: 50M
+          memory: 64M
     
     healthcheck:
       test: ["CMD", "/app/healthcheck"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
 
 volumes:
   agent_logs:
-    driver: local
+  agent_state:
+
+# ============================================
+# QUICK START - Copy and paste this:
+# ============================================
+# 
+# 1. Create directory:
+#    mkdir -p /opt/checklogs && cd /opt/checklogs
+#
+# 2. Download this file:
+#    curl -o docker-compose.yml https://raw.githubusercontent.com/checklogsdev/Agent/main/docker-compose.yml
+#
+# 3. Create .env with YOUR credentials from dashboard:
+#    cat > .env << 'EOF'
+#    CHECKLOGS_API_KEY=your_api_key_from_dashboard
+#    CHECKLOGS_API_PORT=your_udp_port_from_dashboard
+#    SERVER_NAME=My Production Server
+#    EOF
+#
+# 4. Start:
+#    docker-compose up -d
+#
+# 5. Check logs:
+#    docker-compose logs -f
+#
+# That's it! No IP configuration needed.
+# The agent sends data to api.checklogs.dev automatically.
+#
