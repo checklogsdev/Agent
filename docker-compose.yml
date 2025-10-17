@@ -6,7 +6,7 @@ version: '3.8'
 
 services:
   agent:
-    image: checklogsdev/agent:latest
+    image: checklogs/agent:latest
     container_name: checklogs_agent
     restart: unless-stopped
     
