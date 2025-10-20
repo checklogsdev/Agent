@@ -1,34 +1,44 @@
 FROM python:3.11-slim
 
-LABEL maintainer="CheckLogs <hey@checklogs.dev>"
-LABEL description="CheckLogs monitoring agent"
+LABEL maintainer="CheckLogs <support@checklogs.dev>"
+LABEL description="CheckLogs Monitoring Agent - Collects and sends server metrics"
+
+WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
+# Copy requirements first (for better Docker layer caching)
+COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir \
-    psutil==5.9.6
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy agent script
-COPY agent.py /app/agent.py
-RUN chmod +x /app/agent.py
+# Copy agent code
+COPY agent.py .
+COPY healthcheck /app/healthcheck
+RUN chmod +x /app/healthcheck
 
-# Create healthcheck script
-RUN echo '#!/bin/sh\nps aux | grep -v grep | grep agent.py > /dev/null && echo "OK" || exit 1' > /app/healthcheck && \
-    chmod +x /app/healthcheck
+# Create directories for logs and state
+RUN mkdir -p /var/log/checklogs /var/lib/checklogs
 
-# Create logs directory
-RUN mkdir -p /var/log/checklogs
+# Non-root user for security (optional but recommended)
+RUN useradd -m -u 1000 checklogs && \
+    chown -R checklogs:checklogs /app /var/log/checklogs /var/lib/checklogs
 
-# Run as non-root user
-RUN useradd -m -u 1000 checklogs
 USER checklogs
 
-# Start agent
-CMD ["python3", "-u", "/app/agent.py"]
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 --start-period=30s \
+    CMD ["/app/healthcheck"]
+
+# Default environment variables (can be overridden)
+ENV CHECKLOGS_API_HOST=api.checklogs.dev \
+    COLLECT_INTERVAL=10 \
+    LOG_LEVEL=INFO
+
+# Run the agent
+CMD ["python", "-u", "agent.py"]

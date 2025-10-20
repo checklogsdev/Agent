@@ -1,0 +1,4 @@
+#!/bin/sh
+# Simple healthcheck - verify process is running
+pgrep -f "python.*agent.py" > /dev/null 2>&1
+exit $?
